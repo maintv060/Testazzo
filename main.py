@@ -86,15 +86,6 @@ async def save_data():
 # ------------------------
 # HELPERS
 # ------------------------
-def create_hp_bar(current_hp: int, max_hp: int, length: int = 20) -> str:
-    """Create a visual HP bar using block characters."""
-    if max_hp <= 0:
-        return "░" * length
-    filled = int((current_hp / max_hp) * length)
-    filled = max(0, min(filled, length))
-    bar = "█" * filled + "░" * (length - filled)
-    return bar
-
 def ensure_user(user_id: int):
     uid = str(user_id)
     if uid not in data["users"]:
@@ -465,6 +456,7 @@ def damage_formula(attacker_atk: int, defender_def: int) -> int:
     dmg = max(1, int(attacker_atk - defender_def * 0.5))
     return dmg
 
+@bot.command(name="battle", aliases=["bt"])
 @bot.command(name="battle", aliases=["bt", "b"])
 @commands.cooldown(1, 3, commands.BucketType.user)
 async def battle_cmd(ctx):
@@ -776,14 +768,6 @@ async def battle_cmd(ctx):
         user["stamina"] = max(0, user.get("stamina", 0) - 3)
         await save_data()
         await ctx.send("💀 You lost the battle. **-3 stamina**")
-        if lvl_msgs:
-            extra = "\n".join(lvl_msgs) + extra
-        await ctx.send(extra)
-    else:
-        # loss penalty
-        user["stamina"] = max(0, user.get("stamina", 0) - 3)
-        await save_data()
-        await ctx.send("You lost the battle. You lose 3 stamina.")
 
 # Updated floor command: show info and restrict next to unlocked floors
 @bot.command(name="floor", aliases=["fl"])
