@@ -41,6 +41,48 @@ CHARACTERS = [
         "ability": "First turn: +50% ATK",
         "image": "https://media.discordapp.net/attachments/815650716730654743/1466901083933638766/IMG_6229.webp?ex=697e6d98&is=697d1c18&hm=f02546c4cada88d78c8ac03284cdbce01bef7552a336072c3ae10dfc5aa8f217&=&format=webp"
     },
+    {
+    "id": "ecclesia",
+    "name": "Ecclesia",
+    "base": {"hp": 90, "atk": 70, "def": 85, "spd": 80},
+    "ability": "First attack: heals 25% max HP and +25% DEF",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466842664707293278/IMG_6216.jpg?format=webp"
+},
+{
+    "id": "gaeun",
+    "name": "Gaeun",
+    "base": {"hp": 79, "atk": 88, "def": 75, "spd": 86},
+    "ability": "If SPD > enemy SPD: +50% ATK",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466843256989024307/IMG_6217.jpg?format=webp"
+},
+{
+    "id": "jane_walker",
+    "name": "Jane Walker",
+    "base": {"hp": 95, "atk": 72, "def": 98, "spd": 75},
+    "ability": "If HP < 50%: +50% DEF",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466846369691209891/IMG_6222.png?format=webp"
+},
+{
+    "id": "sigma",
+    "name": "Sigma",
+    "base": {"hp": 77, "atk": 77, "def": 77, "spd": 77},
+    "ability": "If HP < 50%: lifesteal 50%",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466855498874880202/IMG_6225.webp?format=webp"
+},
+{
+    "id": "regina_maccready",
+    "name": "Regina Maccready",
+    "base": {"hp": 99, "atk": 77, "def": 88, "spd": 66},
+    "ability": "First attack: paralyzes enemy for 2 turns",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466855566805569596/IMG_6228.webp?format=webp"
+},
+{
+    "id": "horizon",
+    "name": "Horizon",
+    "base": {"hp": 93, "atk": 90, "def": 90, "spd": 85},
+    "ability": "Permanent: +25% damage dealt, -25% damage taken",
+    "image": "https://media.discordapp.net/attachments/815650716730654743/1466856169716060232/IMG_6226.webp?format=webp"
+},
 ]
 
 RARITY_MAX_LEVEL = {
