@@ -25,21 +25,21 @@ CHARACTERS = [
         "name": "Hilde",
         "base": {"hp": 89, "atk": 65, "def": 92, "spd": 65},
         "ability": "First turn: +100% DEF",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466808264175124492/IMG_6210.jpg?ex=697e1726&is=697cc5a6&hm=11cce5cd58f5a8db5dc4e8a8d4afa8154f6fb39d00ccc7aee76a0907c338e901&=&format=webp&width=692&height=968"
+        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901032838631618/IMG_6230.webp?ex=697e6d8b&is=697d1c0b&hm=d54a0f61b48efcf9091c8aab7408acecd66e22a5f9444b6c053d635db6396344&=&format=webp"
     },
     {
         "id": "joo_shiyoon",
         "name": "Joo Shiyoon",
         "base": {"hp": 60, "atk": 95, "def": 86, "spd": 89},
         "ability": "First turn: +100% SPD",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466811090754343074/IMG_6211.jpg?ex=697e19c8&is=697cc848&hm=4a8459bf4b0279d805bd0708e96489a4a9225bc5063029b0b4e6e5ffa08b4df6&=&format=webp"
+        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901241136415006/IMG_6231.webp?ex=697e6dbd&is=697d1c3d&hm=6849bbfd761c0d01a89d8ac6ce6edfc7980e1365d1d643a598d4b937307d6a78&=&format=webp&width=691&height=967"
     },
     {
         "id": "yoo_mina",
         "name": "Yoo Mina",
         "base": {"hp": 75, "atk": 75, "def": 75, "spd": 85},
         "ability": "First turn: +50% ATK",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466811096576037029/IMG_6213.webp?ex=697e19c9&is=697cc849&hm=ddbe9afe21e256f3aeaaabc6990e8f5745f1feaaaf62faf45d925875a02f5339&=&format=webp"
+        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901083933638766/IMG_6229.webp?ex=697e6d98&is=697d1c18&hm=f02546c4cada88d78c8ac03284cdbce01bef7552a336072c3ae10dfc5aa8f217&=&format=webp"
     },
 ]
 
