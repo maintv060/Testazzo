@@ -86,6 +86,15 @@ async def save_data():
 # ------------------------
 # HELPERS
 # ------------------------
+def create_hp_bar(current_hp: int, max_hp: int, length: int = 20) -> str:
+    """Create a visual HP bar using block characters."""
+    if max_hp <= 0:
+        return "░" * length
+    filled = int((current_hp / max_hp) * length)
+    filled = max(0, min(filled, length))
+    bar = "█" * filled + "░" * (length - filled)
+    return bar
+
 def ensure_user(user_id: int):
     uid = str(user_id)
     if uid not in data["users"]:
