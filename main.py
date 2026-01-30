@@ -159,7 +159,7 @@ async def on_ready():
 @bot.command(name="help")
 async def help_cmd(ctx):
     # dynamically list commands
-    lines = [f"Comandi disponibili (prefisso `{PREFIX}`):"]
+    lines = [f"Available commands (prefix `{PREFIX}`):"]
     for c in bot.commands:
         if c.hidden:
             continue
@@ -170,7 +170,7 @@ async def help_cmd(ctx):
 
 @bot.command(name="profile", aliases=["p"]) 
 async def profile(ctx):
-    """Mostra il profilo dell'utente: stamina, gold, level e carte."""
+    """Show user profile: stamina, gold, level and cards."""
     user = ensure_user(ctx.author.id)
     await ctx.send(
         f"👤 **Profile — {ctx.author.name}**\n"
@@ -183,19 +183,19 @@ async def profile(ctx):
 
 @bot.command(name="stamina")
 async def stamina_cmd(ctx):
-    """Mostra lo stamina corrente dell'utente."""
+    """Show current stamina."""
     user = ensure_user(ctx.author.id)
     await ctx.send(f"⚡ Current stamina: **{user['stamina']}**")
 
 @bot.command(name="gold", aliases=["g"]) 
 async def gold_cmd(ctx):
-    """Mostra i gold correnti dell'utente."""
+    """Show current gold."""
     user = ensure_user(ctx.author.id)
     await ctx.send(f"💰 Gold: **{user['gold']}**")
 
 @bot.command(name="inventory", aliases=["inv"]) 
 async def inventory_cmd(ctx):
-    """Elenca le carte dell'utente."""
+    """List user's cards."""
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
     if not inv:
@@ -209,7 +209,7 @@ async def inventory_cmd(ctx):
         lvl = c.get("level", 1)
         text += f"{i}. {name} ({rarity}) Lv{lvl} — id: `{iid}`\n"
     if len(inv) > 25:
-        text += f"... e altri {len(inv)-25} carte\n"
+        text += f"... and {len(inv)-25} more cards\n"
     await ctx.send(text)
 
 @bot.command(name="hourly")
@@ -224,7 +224,7 @@ async def hourly_cmd(ctx):
         remaining_secs = int(cooldown - elapsed)
         minutes = remaining
         seconds = remaining_secs - minutes * 60
-        await ctx.send(f"⏳ Hourly non pronto. Riprova tra {minutes} minuti e {seconds} secondi.")
+        await ctx.send(f"⏳ Hourly not ready. Try again in {minutes} minutes and {seconds} seconds.")
         return
     amount = random.choice([5, 10, 15])
     user["last_hourly"] = now
@@ -235,17 +235,17 @@ async def hourly_cmd(ctx):
 @bot.command(name="farm")
 @commands.cooldown(1, 900, commands.BucketType.user)
 async def farm_cmd(ctx):
-    """Farm per ottenere gold (cooldown 15 minuti)."""
+    """Farm to get gold (15-minute cooldown)."""
     user = ensure_user(ctx.author.id)
     amount = random.randint(100, 1000)
     user["gold"] = user.get("gold", 0) + amount
     await save_data()
-    await ctx.send(f"⛏️ Hai guadagnato **{amount}** gold!")
+    await ctx.send(f"⛏️ You gained **{amount}** gold!")
 
 @bot.command(name="drop")
 @commands.cooldown(1, 900, commands.BucketType.user)
 async def drop_cmd(ctx):
-    """Ottieni una carta casuale (cooldown 15 minuti), non consuma stamina."""
+    """Get a random card (15-minute cooldown), does not consume stamina."""
     user = ensure_user(ctx.author.id)
     base = deepcopy(random.choice(CHARACTERS))
     rarity = random.choices(RARITIES, weights=RARITY_WEIGHTS, k=1)[0]
@@ -261,23 +261,37 @@ async def drop_cmd(ctx):
 
 @bot.command(name="cinfo")
 async def cinfo_cmd(ctx, *, name: str):
-    """Mostra le informazioni base di una carta (stats base). Uso: -cinfo <nome carta>"""
+    """Show the base information of a card (base stats). Usage: -cinfo <card name>"""
     base = find_card_by_name(name)
     if not base:
-        await ctx.send("Carta non trovata.")
+        await ctx.send("Card not found.")
         return
     stats = base["base"]
-    lines = [f"📜 **{base['name']}** - stats base (Common Lv1):"]
-    lines.append(f"HP: {stats['hp']} | ATK: {stats['atk']} | DEF: {stats['def']} | SPD: {stats['spd']}")
-    lines.append(f"Ability: {base['ability']}")
-    lines.append("Max level per rarità:")
-    for r, ml in RARITY_MAX_LEVEL.items():
-        lines.append(f"- {r}: {ml}")
-    await ctx.send("\n".join(lines))
+
+    embed = discord.Embed(
+        title=f"{base['name']} — Base stats (Common Lv1)",
+        description=f"Ability: {base['ability']}",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="HP", value=str(stats['hp']), inline=True)
+    embed.add_field(name="ATK", value=str(stats['atk']), inline=True)
+    embed.add_field(name="DEF", value=str(stats['def']), inline=True)
+    embed.add_field(name="SPD", value=str(stats['spd']), inline=True)
+
+    # max levels
+    max_levels = "\n".join([f"{r}: {ml}" for r, ml in RARITY_MAX_LEVEL.items()])
+    embed.add_field(name="Max level by rarity", value=max_levels, inline=False)
+
+    image_url = base.get("image", "")
+    if image_url:
+        # put image at the bottom of the embed
+        embed.set_image(url=image_url)
+
+    await ctx.send(embed=embed)
 
 @bot.command(name="enhance")
 async def enhance_cmd(ctx, target: str, *args):
-    """Enhance a card using other cards. Uso: -enhance <id_or_index> [-r Rarity] [-n Name] [-l Num]"""
+    """Enhance a card using other cards. Usage: -enhance <id_or_index> [-r Rarity] [-n Name] [-l Num]"""
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
     # find target by instance_id or numeric index
@@ -292,7 +306,7 @@ async def enhance_cmd(ctx, target: str, *args):
                 target_card = c
                 break
     if not target_card:
-        await ctx.send("Target card non trovata in inventario.")
+        await ctx.send("Target card not found in inventory.")
         return
     # parse flags
     flag_r = None
@@ -326,7 +340,7 @@ async def enhance_cmd(ctx, target: str, *args):
             continue
         candidates.append(c)
     if len(candidates) < flag_l:
-        await ctx.send(f"Non ci sono abbastanza carte da usare (trovate {len(candidates)}, richieste {flag_l}).")
+        await ctx.send(f"Not enough cards to use (found {len(candidates)}, required {flag_l}).")
         return
     to_use = candidates[:flag_l]
     # compute exp gain: base 50 per card * rarity multiplier
@@ -347,25 +361,25 @@ async def enhance_cmd(ctx, target: str, *args):
         else:
             break
     await save_data()
-    msg = f"Enhance completato: +{int(gained)} exp alla carta."
+    msg = f"Enhance complete: +{int(gained)} exp to the card."
     if leveled:
-        msg += f" Livelli saliti fino a {target_card['level']}."
+        msg += f" Levels increased up to {target_card['level']}."
     await ctx.send(msg)
 
 @bot.command(name="level")
 async def level_cmd(ctx, member: discord.Member = None):
-    """Mostra il livello dell'utente."""
+    """Show the user's level."""
     target = member or ctx.author
     user = ensure_user(target.id)
     await ctx.send(f"{target.name} — Level {user.get('level',1)} | EXP: {user.get('exp',0)}/{exp_to_next(user.get('level',1))}")
 
 @bot.command(name="battle", aliases=["bt"]) 
 async def battle_cmd(ctx, card_ref: str = None):
-    """Combatti il floor corrente usando una carta (opzionale specificare indice o instance_id)."""
+    """Fight the current floor using a card (optional: specify index or instance_id)."""
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
     if not inv:
-        await ctx.send("Non hai carte per combattere.")
+        await ctx.send("You don't have any cards to fight with.")
         return
     # select card
     chosen = None
@@ -406,7 +420,7 @@ async def battle_cmd(ctx, card_ref: str = None):
             else:
                 break
         await save_data()
-        msg = f"🏆 Vittoria! Guadagni {gold_gain} gold. Carta `{chosen['name']}` guadagna {exp_gain_card} EXP."
+        msg = f"🏆 Victory! You gained {gold_gain} gold. Card `{chosen['name']}` gained {exp_gain_card} EXP."
         if lvl_msgs:
             msg += f"\n" + "\n".join(lvl_msgs)
         await ctx.send(msg)
@@ -414,38 +428,38 @@ async def battle_cmd(ctx, card_ref: str = None):
         # lose: small penalties
         user["stamina"] = max(0, user.get("stamina",0) - 3)
         await save_data()
-        await ctx.send("❌ Sconfitta. Perdi 3 stamina.")
+        await ctx.send("❌ Defeat. You lose 3 stamina.")
 
 @bot.command(name="floor", aliases=["fl"]) 
 async def floor_cmd(ctx, action: str = None):
-    """Gestisci i floors. -floor next per passare al floor successivo (max 10). -floor set <n> per impostare."""
+    """Manage floors. -floor next to go to the next floor (max 10). -floor <n> to set."""
     user = ensure_user(ctx.author.id)
     if not action:
-        await ctx.send(f"Sei al floor {user.get('floor',1)}")
+        await ctx.send(f"You are at floor {user.get('floor',1)}")
         return
     if action.lower() == "next":
         if user.get("floor",1) < 10:
             user["floor"] = user.get("floor",1) + 1
             await save_data()
-            await ctx.send(f"Hai raggiunto il floor {user['floor']}.")
+            await ctx.send(f"You reached floor {user['floor']}.")
         else:
-            await ctx.send("Sei già al floor massimo (10).")
+            await ctx.send("You are already at the maximum floor (10).")
     elif action.isdigit():
         n = int(action)
         if 1 <= n <= 10:
             user["floor"] = n
             await save_data()
-            await ctx.send(f"Floor impostato a {n}.")
+            await ctx.send(f"Floor set to {n}.")
         else:
-            await ctx.send("Numero di floor non valido (1-10).")
+            await ctx.send("Invalid floor number (1-10).")
     else:
-        await ctx.send("Azione floor non riconosciuta.")
+        await ctx.send("Unrecognized floor action.")
 
 # error handler for cooldowns
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(f"⏳ Comando in cooldown. Riprova tra {int(error.retry_after)} secondi.")
+        await ctx.send(f"⏳ Command on cooldown. Try again in {int(error.retry_after)} seconds.")
     else:
         print(f"Unhandled command error: {error}")
 
