@@ -455,8 +455,6 @@ def damage_formula(attacker_atk: int, defender_def: int) -> int:
     """Simple damage formula."""
     dmg = max(1, int(attacker_atk - defender_def * 0.5))
     return dmg
-
-@bot.command(name="battle", aliases=["bt"])
 @bot.command(name="battle", aliases=["bt", "b"])
 @commands.cooldown(1, 3, commands.BucketType.user)
 async def battle_cmd(ctx):
