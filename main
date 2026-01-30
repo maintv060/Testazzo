@@ -1,0 +1,155 @@
+import discord
+from discord.ext import commands
+import random
+import time
+import os
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="-", intents=intents)
+
+# =========================
+# TEMP DATABASE (RAM)
+# =========================
+users = {}
+
+# =========================
+# TEST CHARACTERS
+# =========================
+characters = [
+    {
+        "name": "Naruto",
+        "rarity": "Common",
+        "hp": 100,
+        "atk": 20,
+        "def": 10,
+        "spd": 15,
+        "ability": "Shadow Clone"
+    },
+    {
+        "name": "Sasuke",
+        "rarity": "Rare",
+        "hp": 120,
+        "atk": 30,
+        "def": 15,
+        "spd": 20,
+        "ability": "Chidori"
+    },
+    {
+        "name": "Goku",
+        "rarity": "Epic",
+        "hp": 200,
+        "atk": 45,
+        "def": 20,
+        "spd": 25,
+        "ability": "Kamehameha"
+    },
+    {
+        "name": "Luffy",
+        "rarity": "Legendary",
+        "hp": 250,
+        "atk": 55,
+        "def": 25,
+        "spd": 30,
+        "ability": "Gear Fifth"
+    }
+]
+
+# =========================
+# USER INIT
+# =========================
+def get_user(user_id):
+    if user_id not in users:
+        users[user_id] = {
+            "stamina": 20,
+            "gold": 0,
+            "inventory": [],
+            "last_hourly": 0
+        }
+    return users[user_id]
+
+# =========================
+# BOT READY
+# =========================
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+
+# =========================
+# COMMANDS
+# =========================
+
+@bot.command()
+async def profile(ctx):
+    user = get_user(ctx.author.id)
+    await ctx.send(
+        f"👤 **Profile — {ctx.author.name}**\n"
+        f"⚡ Stamina: {user['stamina']}\n"
+        f"💰 Gold: {user['gold']}\n"
+        f"🎴 Cards owned: {len(user['inventory'])}"
+    )
+
+@bot.command()
+async def stamina(ctx):
+    user = get_user(ctx.author.id)
+    await ctx.send(f"⚡ Current stamina: **{user['stamina']}**")
+
+@bot.command()
+async def gold(ctx):
+    user = get_user(ctx.author.id)
+    await ctx.send(f"💰 Gold: **{user['gold']}**")
+
+@bot.command()
+async def inventory(ctx):
+    user = get_user(ctx.author.id)
+
+    if not user["inventory"]:
+        await ctx.send("🎴 Your inventory is empty.")
+        return
+
+    text = "🎴 **Your cards:**\n"
+    for c in user["inventory"]:
+        text += f"- {c['name']} ({c['rarity']})\n"
+
+    await ctx.send(text)
+
+@bot.command()
+async def hourly(ctx):
+    user = get_user(ctx.author.id)
+    now = time.time()
+
+    if now - user["last_hourly"] < 3600:
+        remaining = int((3600 - (now - user["last_hourly"])) / 60)
+        await ctx.send(f"⏳ Hourly not ready yet. Try again in {remaining} minutes.")
+        return
+
+    user["last_hourly"] = now
+    user["stamina"] += 10
+    user["gold"] += 50
+
+    await ctx.send("🎁 Hourly claimed! +10 stamina, +50 gold.")
+
+@bot.command()
+async def drop(ctx):
+    user = get_user(ctx.author.id)
+
+    if user["stamina"] < 5:
+        await ctx.send("❌ Not enough stamina (5 required).")
+        return
+
+    user["stamina"] -= 5
+    card = random.choice(characters)
+    user["inventory"].append(card)
+
+    await ctx.send(
+        f"🎉 **New card obtained!**\n"
+        f"🧙 {card['name']} ({card['rarity']})\n"
+        f"❤️ HP: {card['hp']} | ⚔ ATK: {card['atk']} | 🛡 DEF: {card['def']} | 💨 SPD: {card['spd']}\n"
+        f"✨ Ability: {card['ability']}"
+    )
+
+# =========================
+# RUN BOT
+# =========================
+bot.run(os.getenv("DISCORD_TOKEN"))
