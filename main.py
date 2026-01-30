@@ -50,7 +50,10 @@ RARITY_MAX_LEVEL = {
     "Legendary": 60,
 }
 RARITIES = ["Common", "Rare", "Epic", "Legendary"]
-RARITY_WEIGHTS = [60, 25, 10, 5]  # percent-ish weights for random drops
+RARITY_WEIGHTS = [60, 25, 10, 5]  # weights for random drops
+
+# rating rank for sorting inventory
+RARITY_RANK = {"Common": 1, "Rare": 2, "Epic": 3, "Legendary": 4}
 
 # ------------------------
 # DATA (persisted in data.json)
@@ -94,9 +97,28 @@ def ensure_user(user_id: int):
             "level": 1,
             "exp": 0,
             "floor": 1,
-            # user max stamina scales with level: base 20 + (level-1)*5 (applied via level ups)
+            "floor_unlocked": 1,
+            # user selected card instance id:
+            "selected": None,
         }
-    return data["users"][uid]
+    # Normalize existing inventory entries if missing fields (basic migration)
+    user = data["users"][uid]
+    inv = user.get("inventory", [])
+    for c in inv:
+        if "level" not in c:
+            c.setdefault("level", 1)
+        if "exp" not in c:
+            c.setdefault("exp", 0)
+        if "max_level" not in c:
+            c["max_level"] = RARITY_MAX_LEVEL.get(c.get("rarity", "Common"), 30)
+        if "base" not in c:
+            # try to find base by id
+            base = next((b for b in CHARACTERS if b["id"] == c.get("id")), None)
+            if base:
+                c["base"] = base["base"]
+                c.setdefault("ability", base.get("ability", ""))
+                c.setdefault("image", base.get("image", ""))
+    return user
 
 def exp_to_next(level: int) -> int:
     return 100 * level
@@ -108,10 +130,10 @@ def maybe_level_up_user(user: dict) -> list:
         need = exp_to_next(user.get("level", 1))
         user["exp"] -= need
         user["level"] = user.get("level", 1) + 1
-        # increase max stamina effectively by granting stamina
+        # increase stamina as an effective max increase
         bonus = 5
         user["stamina"] = user.get("stamina", 0) + bonus
-        messages.append(f"Level up! Now level {user['level']} (+{bonus} max stamina).")
+        messages.append(f"Level up! Now level {user['level']} (+{bonus} stamina).")
     return messages
 
 def create_card_instance(card_base: dict, rarity: str):
@@ -142,6 +164,26 @@ def card_power(card_inst: dict) -> float:
     b = card_inst["base"]
     return (b["hp"] * 0.2 + b["atk"] + b["def"] + b["spd"]) * mult
 
+def sort_inventory(inv: list) -> list:
+    """
+    Return a new list sorted by rarity (desc), then level (desc),
+    then instance timestamp (newer first).
+    """
+    def inst_time(c):
+        parts = str(c.get("instance_id","")).split("_")
+        try:
+            return int(parts[1])
+        except Exception:
+            return 0
+    return sorted(
+        inv,
+        key=lambda c: (
+            -RARITY_RANK.get(c.get("rarity", "Common"), 1),
+            -c.get("level", 1),
+            -inst_time(c)
+        )
+    )
+
 # ------------------------
 # BOT
 # ------------------------
@@ -168,7 +210,7 @@ async def help_cmd(ctx):
         lines.append(f"- `{PREFIX}{names}` — {doc}")
     await ctx.send("\n".join(lines))
 
-@bot.command(name="profile", aliases=["p"]) 
+@bot.command(name="profile", aliases=["p"])
 async def profile(ctx):
     """Show user profile: stamina, gold, level and cards."""
     user = ensure_user(ctx.author.id)
@@ -178,7 +220,7 @@ async def profile(ctx):
         f"💰 Gold: {user['gold']}\n"
         f"🎴 Cards owned: {len(user['inventory'])}\n"
         f"⭐ Level: {user.get('level',1)} | EXP: {user.get('exp',0)}/{exp_to_next(user.get('level',1))}\n"
-        f"🗼 Floor: {user.get('floor',1)}"
+        f"🗼 Floor: {user.get('floor',1)} (unlocked: {user.get('floor_unlocked',1)})"
     )
 
 @bot.command(name="stamina")
@@ -187,30 +229,51 @@ async def stamina_cmd(ctx):
     user = ensure_user(ctx.author.id)
     await ctx.send(f"⚡ Current stamina: **{user['stamina']}**")
 
-@bot.command(name="gold", aliases=["g"]) 
+@bot.command(name="gold", aliases=["g"])
 async def gold_cmd(ctx):
     """Show current gold."""
     user = ensure_user(ctx.author.id)
     await ctx.send(f"💰 Gold: **{user['gold']}**")
 
-@bot.command(name="inventory", aliases=["inv"]) 
+@bot.command(name="inventory", aliases=["inv"])
 async def inventory_cmd(ctx):
-    """List user's cards."""
+    """List user's cards (sorted by rarity and level)."""
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
     if not inv:
         await ctx.send("🎴 Your inventory is empty.")
         return
-    text = "🎴 **Your cards:**\n"
-    for i, c in enumerate(inv[:25], start=1):
+    sorted_inv = sort_inventory(inv)
+    text = "🎴 **Your cards (sorted by rarity then level):**\n"
+    for i, c in enumerate(sorted_inv[:50], start=1):
         name = c.get("name", "Unknown")
         rarity = c.get("rarity", "")
         iid = c.get("instance_id", "")
         lvl = c.get("level", 1)
-        text += f"{i}. {name} ({rarity}) Lv{lvl} — id: `{iid}`\n"
-    if len(inv) > 25:
-        text += f"... and {len(inv)-25} more cards\n"
+        sel_mark = ""
+        if user.get("selected") == iid:
+            sel_mark = " 🔹 (selected)"
+        text += f"{i}. {name} ({rarity}) Lv{lvl}{sel_mark} — id: `{iid}`\n"
+    if len(sorted_inv) > 50:
+        text += f"... and {len(sorted_inv)-50} more cards\n"
     await ctx.send(text)
+
+@bot.command(name="select")
+async def select_cmd(ctx, index: int):
+    """Select a card to use in floors by inventory index (sorted by rarity+level). Usage: -select <index>"""
+    user = ensure_user(ctx.author.id)
+    inv = user["inventory"]
+    if not inv:
+        await ctx.send("Your inventory is empty.")
+        return
+    sorted_inv = sort_inventory(inv)
+    if index < 1 or index > len(sorted_inv):
+        await ctx.send(f"Invalid index (1-{len(sorted_inv)}).")
+        return
+    card = sorted_inv[index - 1]
+    user["selected"] = card["instance_id"]
+    await save_data()
+    await ctx.send(f"Selected card `{card['name']}` (ID: `{card['instance_id']}`).")
 
 @bot.command(name="hourly")
 async def hourly_cmd(ctx):
@@ -294,12 +357,13 @@ async def enhance_cmd(ctx, target: str, *args):
     """Enhance a card using other cards. Usage: -enhance <id_or_index> [-r Rarity] [-n Name] [-l Num]"""
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
-    # find target by instance_id or numeric index
+    # find target by instance_id or numeric index (from sorted inventory)
     target_card = None
     if target.isdigit():
         idx = int(target) - 1
-        if 0 <= idx < len(inv):
-            target_card = inv[idx]
+        sorted_inv = sort_inventory(inv)
+        if 0 <= idx < len(sorted_inv):
+            target_card = sorted_inv[idx]
     else:
         for c in inv:
             if c["instance_id"] == target:
@@ -329,9 +393,9 @@ async def enhance_cmd(ctx, target: str, *args):
                 flag_l = int(next(it))
             except StopIteration:
                 pass
-    # gather sacrifice candidates
+    # gather sacrifice candidates (exclude target instance)
     candidates = []
-    for c in inv:
+    for c in list(inv):
         if c is target_card:
             continue
         if flag_r and c.get("rarity", "") != flag_r:
@@ -348,6 +412,7 @@ async def enhance_cmd(ctx, target: str, *args):
     gained = 0
     for c in to_use:
         gained += 50 * rarity_mul.get(c.get("rarity","Common"),1)
+        # remove from real inventory
         inv.remove(c)
     target_card["exp"] = target_card.get("exp",0) + int(gained)
     # level up card as needed
@@ -373,87 +438,283 @@ async def level_cmd(ctx, member: discord.Member = None):
     user = ensure_user(target.id)
     await ctx.send(f"{target.name} — Level {user.get('level',1)} | EXP: {user.get('exp',0)}/{exp_to_next(user.get('level',1))}")
 
-@bot.command(name="battle", aliases=["bt"]) 
-async def battle_cmd(ctx, card_ref: str = None):
-    """Fight the current floor using a card (optional: specify index or instance_id)."""
+# ------------------------
+# BATTLE (animated embed)
+# ------------------------
+ENEMY_IMAGE = "https://cdn.discordapp.com/attachments/815650716730654743/1466823551628869786/IMG_6214.jpg?ex=697e2562&is=697cd3e2&hm=a30d2cdc6f5f819ca69f575fc2ae0e24719c085230e4521f5f07c6d64982d899"
+
+def make_enemy_for_floor(floor: int) -> dict:
+    """Return an enemy dict with stats scaled by floor."""
+    base_hp = 120 + (floor - 1) * 80
+    base_atk = 25 + (floor - 1) * 10
+    base_def = 10 + (floor - 1) * 5
+    base_spd = 20 + (floor - 1) * 2
+    return {"name": f"Floor {floor} Enemy", "hp": base_hp, "atk": base_atk, "def": base_def, "spd": base_spd, "image": ENEMY_IMAGE}
+
+def damage_formula(attacker_atk: int, defender_def: int) -> int:
+    """Simple damage formula."""
+    dmg = max(1, int(attacker_atk - defender_def * 0.5))
+    return dmg
+
+@bot.command(name="battle", aliases=["bt"])
+async def battle_cmd(ctx):
+    """
+    Start an animated turn-based battle on the user's current floor using the selected card.
+    The embed will be edited after each turn to animate the fight.
+    """
     user = ensure_user(ctx.author.id)
     inv = user["inventory"]
     if not inv:
         await ctx.send("You don't have any cards to fight with.")
         return
-    # select card
+
+    sel_id = user.get("selected")
+    if not sel_id:
+        await ctx.send("No card selected. Use `-select <index>` to choose a card first.")
+        return
+
+    # find selected card in inventory
     chosen = None
-    if card_ref:
-        if card_ref.isdigit():
-            idx = int(card_ref) - 1
-            if 0 <= idx < len(inv):
-                chosen = inv[idx]
-        else:
-            for c in inv:
-                if c["instance_id"] == card_ref:
-                    chosen = c
-                    break
+    for c in inv:
+        if c.get("instance_id") == sel_id:
+            chosen = c
+            break
     if not chosen:
-        chosen = inv[0]
-    floor = user.get("floor",1)
-    # create enemy power scaling with floor
-    enemy_power = 100 + (floor - 1) * 50
-    player_power = card_power(chosen)
-    # simple random factor
-    player_roll = player_power * random.uniform(0.8, 1.2)
-    enemy_roll = enemy_power * random.uniform(0.8, 1.2)
-    if player_roll >= enemy_roll:
-        # win
+        await ctx.send("Selected card not found in inventory (it may have been used). Select another.")
+        return
+
+    floor = user.get("floor", 1)
+    # require that floor is unlocked (user can only battle floors <= floor_unlocked)
+    if floor > user.get("floor_unlocked", 1):
+        await ctx.send(f"Floor {floor} is locked. Complete previous floors to unlock it.")
+        return
+
+    enemy = make_enemy_for_floor(floor)
+
+    # compute player stats scaled by level
+    lvl = chosen.get("level", 1)
+    p_hp = int(chosen["base"]["hp"] * (1 + 0.02 * (lvl - 1)))
+    p_atk_base = int(chosen["base"]["atk"] * (1 + 0.02 * (lvl - 1)))
+    p_def_base = int(chosen["base"]["def"] * (1 + 0.02 * (lvl - 1)))
+    p_spd_base = int(chosen["base"]["spd"] * (1 + 0.01 * (lvl - 1)))
+
+    e_hp = enemy["hp"]
+    e_atk = enemy["atk"]
+    e_def = enemy["def"]
+    e_spd = enemy["spd"]
+
+    # prepare temporary stats for first-turn abilities
+    p_atk = p_atk_base
+    p_def = p_def_base
+    p_spd = p_spd_base
+
+    ability_used = False
+
+    # apply first-turn ability effects BEFORE determining initiative (as requested)
+    ability_text = ""
+    ability = chosen.get("ability", "") or ""
+    if "DEF" in ability and "100" in ability:
+        # Hilde: double DEF for first turn
+        p_def = int(p_def_base * 2)
+        ability_text = f"{chosen['name']}'s ability activates: DEF doubled for first turn!"
+    elif "SPD" in ability and "100" in ability:
+        # Joo: double SPD for first turn
+        p_spd = int(p_spd_base * 2)
+        ability_text = f"{chosen['name']}'s ability activates: SPD doubled for first turn!"
+    elif "ATK" in ability and "50" in ability:
+        # Yoo: +50% ATK for first turn
+        p_atk = int(p_atk_base * 1.5)
+        ability_text = f"{chosen['name']}'s ability activates: ATK increased by 50% for first turn!"
+
+    # determine who acts first using (possibly buffed) speed
+    if p_spd > e_spd:
+        turn_order = ["player", "enemy"]
+    elif p_spd < e_spd:
+        turn_order = ["enemy", "player"]
+    else:
+        turn_order = ["player", "enemy"] if random.choice([True, False]) else ["enemy", "player"]
+
+    # initial embed
+    embed = discord.Embed(title=f"Battle — Floor {floor}", color=discord.Color.blue())
+    embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
+    embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
+    embed.add_field(name="Status", value="Battle starting...", inline=False)
+    if chosen.get("image"):
+        embed.set_thumbnail(url=chosen.get("image"))  # top-right image
+    embed.set_image(url=enemy.get("image"))  # bottom image (enemy)
+    message = await ctx.send(embed=embed)
+
+    # small delay before starting
+    await asyncio.sleep(1.0)
+
+    # animate turns
+    max_turns = 40
+    turn_logs = []
+    current_turn = 0
+    player_current_hp = p_hp
+    enemy_current_hp = e_hp
+
+    # We need to revert temporary buffs after first player's turn and/or after first full round.
+    buff_applied = True  # we applied the first-turn buff already in stats above
+    while player_current_hp > 0 and enemy_current_hp > 0 and current_turn < max_turns:
+        current_turn += 1
+        # for each actor in order
+        for actor in turn_order:
+            if actor == "player":
+                if player_current_hp <= 0 or enemy_current_hp <= 0:
+                    break
+                dmg = damage_formula(p_atk, e_def)
+                enemy_current_hp -= dmg
+                enemy_current_hp = max(0, enemy_current_hp)
+                log = f"Turn {current_turn} — {chosen['name']} attacks for {dmg} damage. Enemy HP: {enemy_current_hp}."
+                turn_logs.append(log)
+
+                # update embed with latest logs
+                short_logs = "\n".join(turn_logs[-6:])  # show last 6 actions for brevity
+                embed = discord.Embed(title=f"Battle — Floor {floor}", description=short_logs, color=discord.Color.green())
+                embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
+                embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
+                embed.add_field(name="HP", value=f"{chosen['name']}: {player_current_hp} | Enemy: {enemy_current_hp}", inline=False)
+                if chosen.get("image"):
+                    embed.set_thumbnail(url=chosen.get("image"))
+                embed.set_image(url=enemy.get("image"))
+                await message.edit(embed=embed)
+                await asyncio.sleep(1.0)
+
+                # remove first-turn buff effects that should only last their first use
+                if buff_applied:
+                    # after player's first action, revert ATK/SPD/DEF to base for subsequent turns
+                    p_atk = p_atk_base
+                    p_def = p_def_base
+                    p_spd = p_spd_base
+                    buff_applied = False
+
+                if enemy_current_hp <= 0:
+                    break
+
+            else:  # enemy's turn
+                if player_current_hp <= 0 or enemy_current_hp <= 0:
+                    break
+                dmg = damage_formula(e_atk, p_def)
+                player_current_hp -= dmg
+                player_current_hp = max(0, player_current_hp)
+                log = f"Turn {current_turn} — Enemy attacks for {dmg} damage. {chosen['name']} HP: {player_current_hp}."
+                turn_logs.append(log)
+
+                short_logs = "\n".join(turn_logs[-6:])
+                embed = discord.Embed(title=f"Battle — Floor {floor}", description=short_logs, color=discord.Color.red())
+                embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
+                embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
+                embed.add_field(name="HP", value=f"{chosen['name']}: {player_current_hp} | Enemy: {enemy_current_hp}", inline=False)
+                if chosen.get("image"):
+                    embed.set_thumbnail(url=chosen.get("image"))
+                embed.set_image(url=enemy.get("image"))
+                await message.edit(embed=embed)
+                await asyncio.sleep(1.0)
+
+                if player_current_hp <= 0:
+                    break
+
+        # loop continues until someone dies or max_turns reached
+
+    # final result embed
+    if enemy_current_hp <= 0 and player_current_hp > 0:
+        result = "Victory"
+        color = discord.Color.green()
+    elif player_current_hp <= 0 and enemy_current_hp > 0:
+        result = "Defeat"
+        color = discord.Color.red()
+    else:
+        result = "Draw"
+        color = discord.Color.orange()
+
+    final_desc = "\n".join(turn_logs[-15:]) if turn_logs else "No actions taken."
+    embed = discord.Embed(title=f"Battle — Floor {floor} — {result}", description=final_desc, color=color)
+    embed.add_field(name="Player HP left", value=str(player_current_hp), inline=True)
+    embed.add_field(name="Enemy HP left", value=str(enemy_current_hp), inline=True)
+    if chosen.get("image"):
+        embed.set_thumbnail(url=chosen.get("image"))
+    embed.set_image(url=enemy.get("image"))
+    await message.edit(embed=embed)
+
+    # apply rewards/penalties and progression
+    if enemy_current_hp <= 0 and player_current_hp > 0:
         gold_gain = 50 + floor * 10
         exp_gain_user = 30 + floor * 5
         exp_gain_card = 40 + floor * 10
-        user["gold"] = user.get("gold",0) + gold_gain
-        user["exp"] = user.get("exp",0) + exp_gain_user
-        chosen["exp"] = chosen.get("exp",0) + exp_gain_card
+        user["gold"] = user.get("gold", 0) + gold_gain
+        user["exp"] = user.get("exp", 0) + exp_gain_user
+        # add exp to chosen instance
+        chosen["exp"] = chosen.get("exp", 0) + exp_gain_card
+
         lvl_msgs = maybe_level_up_user(user)
-        # card level up
-        while chosen.get("level",1) < chosen.get("max_level",30):
-            need = 100 * chosen.get("level",1)
-            if chosen.get("exp",0) >= need:
+        # level up card
+        while chosen.get("level", 1) < chosen.get("max_level", 30):
+            need = 100 * chosen.get("level", 1)
+            if chosen.get("exp", 0) >= need:
                 chosen["exp"] -= need
                 chosen["level"] += 1
             else:
                 break
-        await save_data()
-        msg = f"🏆 Victory! You gained {gold_gain} gold. Card `{chosen['name']}` gained {exp_gain_card} EXP."
-        if lvl_msgs:
-            msg += f"\n" + "\n".join(lvl_msgs)
-        await ctx.send(msg)
-    else:
-        # lose: small penalties
-        user["stamina"] = max(0, user.get("stamina",0) - 3)
-        await save_data()
-        await ctx.send("❌ Defeat. You lose 3 stamina.")
 
-@bot.command(name="floor", aliases=["fl"]) 
+        # unlock next floor
+        if user.get("floor_unlocked", 1) < floor + 1:
+            user["floor_unlocked"] = floor + 1
+
+        await save_data()
+        extra = f"\nYou won! +{gold_gain} gold, +{exp_gain_user} EXP. Next floor unlocked: {user.get('floor_unlocked', user.get('floor',1))}"
+        if lvl_msgs:
+            extra = "\n".join(lvl_msgs) + extra
+        await ctx.send(extra)
+    else:
+        # loss penalty
+        user["stamina"] = max(0, user.get("stamina", 0) - 3)
+        await save_data()
+        await ctx.send("You lost the battle. You lose 3 stamina.")
+
+# Updated floor command: show info and restrict next to unlocked floors
+@bot.command(name="floor", aliases=["fl"])
 async def floor_cmd(ctx, action: str = None):
-    """Manage floors. -floor next to go to the next floor (max 10). -floor <n> to set."""
+    """Manage floors. -floor next to go to the next floor (unlocks limited by progression). -floor <n> to set (only to unlocked)."""
     user = ensure_user(ctx.author.id)
     if not action:
-        await ctx.send(f"You are at floor {user.get('floor',1)}")
+        floor = user.get("floor", 1)
+        unlocked = user.get("floor_unlocked", 1)
+        # show enemy stats for current floor
+        enemy = make_enemy_for_floor(floor)
+        await ctx.send(
+            f"You are at floor {floor} (unlocked up to {unlocked}).\n"
+            f"Enemy stats — HP: {enemy['hp']} | ATK: {enemy['atk']} | DEF: {enemy['def']} | SPD: {enemy['spd']}"
+        )
         return
+
     if action.lower() == "next":
-        if user.get("floor",1) < 10:
-            user["floor"] = user.get("floor",1) + 1
-            await save_data()
-            await ctx.send(f"You reached floor {user['floor']}.")
-        else:
+        current = user.get("floor", 1)
+        unlocked = user.get("floor_unlocked", 1)
+        if current >= 10:
             await ctx.send("You are already at the maximum floor (10).")
-    elif action.isdigit():
+            return
+        if unlocked < current + 1:
+            await ctx.send("Next floor is locked. Complete the current floor to unlock the next one.")
+            return
+        user["floor"] = current + 1
+        await save_data()
+        await ctx.send(f"You moved to floor {user['floor']}.")
+        return
+
+    # set to numeric floor only if unlocked
+    if action.isdigit():
         n = int(action)
-        if 1 <= n <= 10:
+        unlocked = user.get("floor_unlocked", 1)
+        if 1 <= n <= unlocked:
             user["floor"] = n
             await save_data()
             await ctx.send(f"Floor set to {n}.")
         else:
-            await ctx.send("Invalid floor number (1-10).")
-    else:
-        await ctx.send("Unrecognized floor action.")
+            await ctx.send(f"Cannot set floor to {n}. Unlocked up to {unlocked}.")
+        return
+
+    await ctx.send("Unrecognized floor action. Use `next` or a floor number you have unlocked.")
 
 # error handler for cooldowns
 @bot.event
