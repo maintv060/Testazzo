@@ -86,6 +86,15 @@ async def save_data():
 # ------------------------
 # HELPERS
 # ------------------------
+def create_hp_bar(current_hp: int, max_hp: int, length: int = 20) -> str:
+    """Create a visual HP bar using block characters."""
+    if max_hp <= 0:
+        return "░" * length
+    filled = int((current_hp / max_hp) * length)
+    filled = max(0, min(filled, length))
+    bar = "█" * filled + "░" * (length - filled)
+    return bar
+
 def ensure_user(user_id: int):
     uid = str(user_id)
     if uid not in data["users"]:
@@ -456,108 +465,148 @@ def damage_formula(attacker_atk: int, defender_def: int) -> int:
     dmg = max(1, int(attacker_atk - defender_def * 0.5))
     return dmg
 
-@bot.command(name="battle", aliases=["bt"])
+@bot.command(name="battle", aliases=["bt", "b"])
+@commands.cooldown(1, 3, commands.BucketType.user)
 async def battle_cmd(ctx):
-    """
-    Start an animated turn-based battle on the user's current floor using the selected card.
-    The embed will be edited after each turn to animate the fight.
-    """
+    """Start a battle on your current floor with your selected character."""
     user = ensure_user(ctx.author.id)
-    inv = user["inventory"]
-    if not inv:
-        await ctx.send("You don't have any cards to fight with.")
+    if user.get("stamina", 0) < 5:
+        await ctx.send("❌ Not enough stamina. You need 5 to battle.")
+        return
+    if not user.get("selected"):
+        await ctx.send("❌ No character selected. Use `-select <n>` first.")
         return
 
-    sel_id = user.get("selected")
-    if not sel_id:
-        await ctx.send("No card selected. Use `-select <index>` to choose a card first.")
-        return
-
-    # find selected card in inventory
+    # find the selected card
+    selected_id = user["selected"]
     chosen = None
-    for c in inv:
-        if c.get("instance_id") == sel_id:
+    for c in user["inventory"]:
+        if c.get("instance_id") == selected_id:
             chosen = c
             break
     if not chosen:
-        await ctx.send("Selected card not found in inventory (it may have been used). Select another.")
+        await ctx.send("❌ Your selected character was not found. Use `-select <n>` again.")
         return
 
+    # remove stamina and save immediately
+    user["stamina"] -= 5
+    await save_data()
+
+    # battle logic
     floor = user.get("floor", 1)
-    # require that floor is unlocked (user can only battle floors <= floor_unlocked)
-    if floor > user.get("floor_unlocked", 1):
-        await ctx.send(f"Floor {floor} is locked. Complete previous floors to unlock it.")
-        return
-
     enemy = make_enemy_for_floor(floor)
 
-    # compute player stats scaled by level
+    # stats for player's selected character
     lvl = chosen.get("level", 1)
-    p_hp = int(chosen["base"]["hp"] * (1 + 0.02 * (lvl - 1)))
-    p_atk_base = int(chosen["base"]["atk"] * (1 + 0.02 * (lvl - 1)))
-    p_def_base = int(chosen["base"]["def"] * (1 + 0.02 * (lvl - 1)))
-    p_spd_base = int(chosen["base"]["spd"] * (1 + 0.01 * (lvl - 1)))
+    base = chosen["base"]
 
-    e_hp = enemy["hp"]
-    e_atk = enemy["atk"]
-    e_def = enemy["def"]
-    e_spd = enemy["spd"]
+    # multiply by level scaling
+    mult = 1 + 0.03 * (lvl - 1)
+    p_hp_max = int(base["hp"] * mult)
+    p_atk_base = int(base["atk"] * mult)
+    p_def_base = int(base["def"] * mult)
+    p_spd_base = int(base["spd"] * mult)
 
-    # prepare temporary stats for first-turn abilities
+    # save base values for reversion after first turn
     p_atk = p_atk_base
     p_def = p_def_base
     p_spd = p_spd_base
 
-    ability_used = False
+    # enemy stats from enemy dict
+    e_hp_max = enemy["hp"]
+    e_atk = enemy["atk"]
+    e_def = enemy["def"]
+    e_spd = enemy["spd"]
+    e_lvl = enemy.get("level", floor)  # enemy level based on floor
 
-    # apply first-turn ability effects BEFORE determining initiative (as requested)
+    # current HP (starts at max)
+    player_current_hp = p_hp_max
+    enemy_current_hp = e_hp_max
+
+    # ability: first turn buff for the player
     ability_text = ""
-    ability = chosen.get("ability", "") or ""
-    if "DEF" in ability and "100" in ability:
-        # Hilde: double DEF for first turn
-        p_def = int(p_def_base * 2)
-        ability_text = f"{chosen['name']}'s ability activates: DEF doubled for first turn!"
-    elif "SPD" in ability and "100" in ability:
-        # Joo: double SPD for first turn
-        p_spd = int(p_spd_base * 2)
-        ability_text = f"{chosen['name']}'s ability activates: SPD doubled for first turn!"
-    elif "ATK" in ability and "50" in ability:
-        # Yoo: +50% ATK for first turn
-        p_atk = int(p_atk_base * 1.5)
-        ability_text = f"{chosen['name']}'s ability activates: ATK increased by 50% for first turn!"
+    if chosen.get("ability"):
+        if "DEF" in chosen["ability"]:
+            p_def = int(p_def_base * 2)
+            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
+        elif "SPD" in chosen["ability"]:
+            p_spd = int(p_spd_base * 2)
+            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
+        elif "ATK" in chosen["ability"]:
+            p_atk = int(p_atk_base * 1.5)
+            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
 
     # determine who acts first using (possibly buffed) speed
+    first_striker = None
     if p_spd > e_spd:
         turn_order = ["player", "enemy"]
+        first_striker = "player"
     elif p_spd < e_spd:
         turn_order = ["enemy", "player"]
+        first_striker = "enemy"
     else:
-        turn_order = ["player", "enemy"] if random.choice([True, False]) else ["enemy", "player"]
+        if random.choice([True, False]):
+            turn_order = ["player", "enemy"]
+            first_striker = "player"
+        else:
+            turn_order = ["enemy", "player"]
+            first_striker = "enemy"
 
-    # initial embed
-    embed = discord.Embed(title=f"Battle — Floor {floor}", color=discord.Color.blue())
-    embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
-    embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
-    embed.add_field(name="Status", value="Battle starting...", inline=False)
+    # initial embed with full stats
+    embed = discord.Embed(
+        title=f"⚔️ Battle — Floor {floor} ⚔️",
+        description=f"Get ready to fight!",
+        color=discord.Color.blue()
+    )
+    
+    # Player info
+    player_stats = (
+        f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
+        f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+        f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
+    )
+    embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
+    
+    # Enemy info
+    enemy_stats = (
+        f"**Enemy's {enemy['name']}** `{enemy.get('rarity', 'Epic')}` Level `{e_lvl}`\n"
+        f"HP: `{e_hp_max}` | ATK: `{e_atk}` | DEF: `{e_def}` | SPD: `{e_spd}`\n"
+        f"{create_hp_bar(enemy_current_hp, e_hp_max)} `{enemy_current_hp}/{e_hp_max}`"
+    )
+    embed.add_field(name="⚡ Enemy", value=enemy_stats, inline=False)
+    
     if chosen.get("image"):
-        embed.set_thumbnail(url=chosen.get("image"))  # top-right image
-    embed.set_image(url=enemy.get("image"))  # bottom image (enemy)
+        embed.set_thumbnail(url=chosen.get("image"))
+    if enemy.get("image"):
+        embed.set_image(url=enemy.get("image"))
+    
     message = await ctx.send(embed=embed)
+    await asyncio.sleep(2.0)
 
-    # small delay before starting
-    await asyncio.sleep(1.0)
+    # Show ability activation if any
+    if ability_text:
+        embed.description = ability_text
+        await message.edit(embed=embed)
+        await asyncio.sleep(2.0)
 
     # animate turns
     max_turns = 40
-    turn_logs = []
-    current_turn = 0
-    player_current_hp = p_hp
-    enemy_current_hp = e_hp
-
-    # We need to revert temporary buffs after first player's turn and/or after first full round.
+    current_round = 0
     buff_applied = True  # we applied the first-turn buff already in stats above
-    while player_current_hp > 0 and enemy_current_hp > 0 and current_turn < max_turns:
-        current_turn += 1
+    
+    while player_current_hp > 0 and enemy_current_hp > 0 and current_round < max_turns:
+        current_round += 1
+        round_log = []
+        
+        # Show who strikes first on first round
+        if current_round == 1:
+            if first_striker == "player":
+                round_log.append(f"**[ROUND {current_round}]** {ctx.author.display_name}'s **{chosen['name']}** has more SPD. It strikes first!")
+            else:
+                round_log.append(f"**[ROUND {current_round}]** Enemy's **{enemy['name']}** has more SPD. It strikes first!")
+        else:
+            round_log.append(f"**[ROUND {current_round}]**")
+        
         # for each actor in order
         for actor in turn_order:
             if actor == "player":
@@ -566,24 +615,41 @@ async def battle_cmd(ctx):
                 dmg = damage_formula(p_atk, e_def)
                 enemy_current_hp -= dmg
                 enemy_current_hp = max(0, enemy_current_hp)
-                log = f"Turn {current_turn} — {chosen['name']} attacks for {dmg} damage. Enemy HP: {enemy_current_hp}."
-                turn_logs.append(log)
+                round_log.append(f"⚔️ {ctx.author.display_name}'s **{chosen['name']}** deals `{dmg}` damage.")
 
-                # update embed with latest logs
-                short_logs = "\n".join(turn_logs[-6:])  # show last 6 actions for brevity
-                embed = discord.Embed(title=f"Battle — Floor {floor}", description=short_logs, color=discord.Color.green())
-                embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
-                embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
-                embed.add_field(name="HP", value=f"{chosen['name']}: {player_current_hp} | Enemy: {enemy_current_hp}", inline=False)
+                # update embed with current round
+                embed = discord.Embed(
+                    title=f"⚔️ Battle — Floor {floor} ⚔️",
+                    description="\n".join(round_log),
+                    color=discord.Color.green()
+                )
+                
+                # Player info with updated HP
+                player_stats = (
+                    f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
+                    f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+                    f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
+                )
+                embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
+                
+                # Enemy info with updated HP
+                enemy_stats = (
+                    f"**Enemy's {enemy['name']}** `{enemy.get('rarity', 'Epic')}` Level `{e_lvl}`\n"
+                    f"HP: `{e_hp_max}` | ATK: `{e_atk}` | DEF: `{e_def}` | SPD: `{e_spd}`\n"
+                    f"{create_hp_bar(enemy_current_hp, e_hp_max)} `{enemy_current_hp}/{e_hp_max}`"
+                )
+                embed.add_field(name="⚡ Enemy", value=enemy_stats, inline=False)
+                
                 if chosen.get("image"):
                     embed.set_thumbnail(url=chosen.get("image"))
-                embed.set_image(url=enemy.get("image"))
+                if enemy.get("image"):
+                    embed.set_image(url=enemy.get("image"))
+                
                 await message.edit(embed=embed)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(1.5)
 
                 # remove first-turn buff effects that should only last their first use
                 if buff_applied:
-                    # after player's first action, revert ATK/SPD/DEF to base for subsequent turns
                     p_atk = p_atk_base
                     p_def = p_def_base
                     p_spd = p_spd_base
@@ -598,43 +664,79 @@ async def battle_cmd(ctx):
                 dmg = damage_formula(e_atk, p_def)
                 player_current_hp -= dmg
                 player_current_hp = max(0, player_current_hp)
-                log = f"Turn {current_turn} — Enemy attacks for {dmg} damage. {chosen['name']} HP: {player_current_hp}."
-                turn_logs.append(log)
+                round_log.append(f"💥 Enemy's **{enemy['name']}** deals `{dmg}` damage.")
 
-                short_logs = "\n".join(turn_logs[-6:])
-                embed = discord.Embed(title=f"Battle — Floor {floor}", description=short_logs, color=discord.Color.red())
-                embed.add_field(name="Player", value=f"{chosen['name']} — Lv{lvl} ({chosen.get('rarity')})", inline=True)
-                embed.add_field(name="Enemy", value=f"{enemy['name']}", inline=True)
-                embed.add_field(name="HP", value=f"{chosen['name']}: {player_current_hp} | Enemy: {enemy_current_hp}", inline=False)
+                embed = discord.Embed(
+                    title=f"⚔️ Battle — Floor {floor} ⚔️",
+                    description="\n".join(round_log),
+                    color=discord.Color.red()
+                )
+                
+                # Player info with updated HP
+                player_stats = (
+                    f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
+                    f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+                    f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
+                )
+                embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
+                
+                # Enemy info with updated HP
+                enemy_stats = (
+                    f"**Enemy's {enemy['name']}** `{enemy.get('rarity', 'Epic')}` Level `{e_lvl}`\n"
+                    f"HP: `{e_hp_max}` | ATK: `{e_atk}` | DEF: `{e_def}` | SPD: `{e_spd}`\n"
+                    f"{create_hp_bar(enemy_current_hp, e_hp_max)} `{enemy_current_hp}/{e_hp_max}`"
+                )
+                embed.add_field(name="⚡ Enemy", value=enemy_stats, inline=False)
+                
                 if chosen.get("image"):
                     embed.set_thumbnail(url=chosen.get("image"))
-                embed.set_image(url=enemy.get("image"))
+                if enemy.get("image"):
+                    embed.set_image(url=enemy.get("image"))
+                
                 await message.edit(embed=embed)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(1.5)
 
                 if player_current_hp <= 0:
                     break
 
-        # loop continues until someone dies or max_turns reached
-
     # final result embed
     if enemy_current_hp <= 0 and player_current_hp > 0:
-        result = "Victory"
-        color = discord.Color.green()
+        result = "🎉 VICTORY! 🎉"
+        color = discord.Color.gold()
+        result_desc = f"You defeated the enemy in {current_round} rounds!"
     elif player_current_hp <= 0 and enemy_current_hp > 0:
-        result = "Defeat"
-        color = discord.Color.red()
+        result = "💀 DEFEAT 💀"
+        color = discord.Color.dark_red()
+        result_desc = f"You were defeated in {current_round} rounds."
     else:
-        result = "Draw"
+        result = "⚖️ DRAW ⚖️"
         color = discord.Color.orange()
+        result_desc = f"Battle ended in a draw after {current_round} rounds."
 
-    final_desc = "\n".join(turn_logs[-15:]) if turn_logs else "No actions taken."
-    embed = discord.Embed(title=f"Battle — Floor {floor} — {result}", description=final_desc, color=color)
-    embed.add_field(name="Player HP left", value=str(player_current_hp), inline=True)
-    embed.add_field(name="Enemy HP left", value=str(enemy_current_hp), inline=True)
+    embed = discord.Embed(
+        title=f"⚔️ Battle — Floor {floor} ⚔️",
+        description=f"**{result}**\n{result_desc}",
+        color=color
+    )
+    
+    # Final HP display
+    player_stats = (
+        f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
+        f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
+    )
+    embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
+    
+    enemy_stats = (
+        f"**Enemy's {enemy['name']}** `{enemy.get('rarity', 'Epic')}` Level `{e_lvl}`\n"
+        f"{create_hp_bar(enemy_current_hp, e_hp_max)} `{enemy_current_hp}/{e_hp_max}`"
+    )
+    embed.add_field(name="⚡ Enemy", value=enemy_stats, inline=False)
+    
     if chosen.get("image"):
         embed.set_thumbnail(url=chosen.get("image"))
-    embed.set_image(url=enemy.get("image"))
+    if enemy.get("image"):
+        embed.set_image(url=enemy.get("image"))
+    
     await message.edit(embed=embed)
 
     # apply rewards/penalties and progression
@@ -662,7 +764,18 @@ async def battle_cmd(ctx):
             user["floor_unlocked"] = floor + 1
 
         await save_data()
-        extra = f"\nYou won! +{gold_gain} gold, +{exp_gain_user} EXP. Next floor unlocked: {user.get('floor_unlocked', user.get('floor',1))}"
+        
+        reward_msg = f"💰 **Rewards:**\n+{gold_gain} gold | +{exp_gain_user} EXP (user) | +{exp_gain_card} EXP ({chosen['name']})"
+        if user.get("floor_unlocked", 1) > floor:
+            reward_msg += f"\n🔓 Floor {user.get('floor_unlocked')} unlocked!"
+        if lvl_msgs:
+            reward_msg = "\n".join(lvl_msgs) + "\n" + reward_msg
+        await ctx.send(reward_msg)
+    else:
+        # loss penalty
+        user["stamina"] = max(0, user.get("stamina", 0) - 3)
+        await save_data()
+        await ctx.send("💀 You lost the battle. **-3 stamina**")
         if lvl_msgs:
             extra = "\n".join(lvl_msgs) + extra
         await ctx.send(extra)
