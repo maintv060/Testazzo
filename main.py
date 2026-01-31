@@ -92,6 +92,22 @@ CHARACTERS = [
         "ability_type": "survive",
         "image": "https://media.discordapp.net/attachments/1467048963415871621/1467287024011837731/IMG_6245.webp?ex=697fd507&is=697e8387&hm=9ac193ff03c2f6090ad9970be4809415d93e34c0f7080763d678371e187e36c3&=&format=webp&width=692&height=968"
     },
+    {
+        "id": "lunacia",
+        "name": "Lunacia",
+        "base": {"hp": 85, "atk": 80, "def": 70, "spd": 90},
+        "ability": "If SPD > enemy SPD: Deal +50% bonus damage",
+        "ability_type": "speed_bonus",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467304124465807543/IMG_6246.webp?ex=697fe4f4&is=697e9374&hm=589f49e7ea6fb044cf8aba2211088db958a1d872be585be1ad801671eb1f5409&=&format=webp&width=692&height=968"
+    },
+    {
+        "id": "bahamut",
+        "name": "Bahamut",
+        "base": {"hp": 66, "atk": 91, "def": 76, "spd": 91},
+        "ability": "When HP < 50%: +50% ATK",
+        "ability_type": "low_hp_atk_boost",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467305407293948141/IMG_6247.webp?ex=697fe626&is=697e94a6&hm=b21bd82a8e152875c3964ff175a11fb0152693ab005bcca061bf7eff28c7ec86&=&format=webp"
+    },
 ]
 
 RARITY_MAX_LEVEL = {
@@ -643,6 +659,10 @@ async def battle_cmd(ctx):
             ability_type = "rampage"
         elif char_id == "verbena":
             ability_type = "survive"
+        elif char_id == "lunacia":
+            ability_type = "speed_bonus"
+        elif char_id == "bahamut":
+            ability_type = "low_hp_atk_boost"
     
     ability_text = ""
     buff_applied = False
@@ -662,11 +682,16 @@ async def battle_cmd(ctx):
     # Verbena survival ability
     verbena_survived = False
     
+    # Bahamut low HP ATK boost
+    bahamut_low_hp_active = False
+    
     # check for passive abilities that apply always
     if ability_type == "passive_damage_boost":  # Kasli
         passive_damage_boost = True
         p_def = int(p_def_base * 1.3)  # 30% less damage = 30% more DEF
         ability_text = f"✨ {chosen['name']}'s ability is active!\n**{chosen.get('ability', '')}**"
+    elif ability_type == "speed_bonus":  # Lunacia
+        ability_text = f"✨ {chosen['name']}'s ability is ready!\n**{chosen.get('ability', '')}**"
     elif ability_type == "rampage":  # Balrog
         ability_text = f"✨ {chosen['name']}'s ability is ready!\n**{chosen.get('ability', '')}**"
     
@@ -767,6 +792,13 @@ async def battle_cmd(ctx):
                         low_hp_def_active = True
                         round_log.append(f"💚 **{chosen['name']}'s low HP ability activates!** DEF +50%")
                 
+                # Bahamut's low HP ATK boost
+                if ability_type == "low_hp_atk_boost" and not bahamut_low_hp_active:
+                    if player_current_hp < (p_hp_max * 0.5):
+                        p_atk = int(p_atk_base * 1.5)
+                        bahamut_low_hp_active = True
+                        round_log.append(f"⚡ **{chosen['name']}'s fury awakens!** ATK +50%")
+                
                 # Balrog's rampage ability - ATK increases every turn
                 if ability_type == "rampage":
                     balrog_atk_stacks += 1
@@ -791,6 +823,12 @@ async def battle_cmd(ctx):
                     dmg = int(base_dmg * 1.3)  # +30% damage
                 else:
                     dmg = base_dmg
+                
+                # Lunacia's speed bonus damage
+                if ability_type == "speed_bonus" and p_spd > e_spd:
+                    bonus_dmg = int(p_atk * 0.5)  # 50% of ATK as bonus
+                    dmg += bonus_dmg
+                    round_log.append(f"💨 **{chosen['name']}'s speed advantage!** +{bonus_dmg} bonus damage!")
                 
                 enemy_current_hp -= dmg
                 enemy_current_hp = max(0, enemy_current_hp)
