@@ -451,10 +451,6 @@ async def cinfo_cmd(ctx, *, name: str):
     embed.add_field(name="DEF", value=str(stats['def']), inline=True)
     embed.add_field(name="SPD", value=str(stats['spd']), inline=True)
 
-    # max levels
-    max_levels = "\n".join([f"{r}: {ml}" for r, ml in RARITY_MAX_LEVEL.items()])
-    embed.add_field(name="Max level by rarity", value=max_levels, inline=False)
-
     image_url = base.get("image", "")
     if image_url:
         # put image at the bottom of the embed
