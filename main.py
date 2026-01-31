@@ -76,6 +76,22 @@ CHARACTERS = [
         "ability_type": "heal_and_def",
         "image": "https://media.discordapp.net/attachments/1467048963415871621/1467229071741026486/IMG_6239.webp?ex=697f9f0e&is=697e4d8e&hm=3ced57c2b8f5be94667b84252de7ccd99720d94b36eb37e410434a64111750b0&=&format=webp&width=691&height=967"
     },
+    {
+        "id": "balrog",
+        "name": "Balrog",
+        "base": {"hp": 88, "atk": 75, "def": 80, "spd": 80},
+        "ability": "Every turn: +20% ATK (stacks)",
+        "ability_type": "rampage",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467278664403255468/IMG_6244.jpg?ex=697fcd3e&is=697e7bbe&hm=fcc1aa963f18b67c71a49dee6f94f7cf2aea77efd33e9a8119f49bb0fc419769&=&format=webp&width=691&height=968"
+    },
+    {
+        "id": "verbena",
+        "name": "Verbena",
+        "base": {"hp": 88, "atk": 75, "def": 80, "spd": 80},
+        "ability": "Survives with 1 HP once when taking fatal damage",
+        "ability_type": "survive",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467287024011837731/IMG_6245.webp?ex=697fd507&is=697e8387&hm=9ac193ff03c2f6090ad9970be4809415d93e34c0f7080763d678371e187e36c3&=&format=webp&width=692&height=968"
+    },
 ]
 
 RARITY_MAX_LEVEL = {
@@ -582,6 +598,10 @@ async def battle_cmd(ctx):
             ability_type = "paralyze"
         elif char_id == "jeanne":
             ability_type = "heal_and_def"
+        elif char_id == "balrog":
+            ability_type = "rampage"
+        elif char_id == "verbena":
+            ability_type = "survive"
     
     ability_text = ""
     buff_applied = False
@@ -595,11 +615,19 @@ async def battle_cmd(ctx):
     heal_and_def_used = False
     jeanne_def_boost = 1.0
     
+    # Balrog rampage ability
+    balrog_atk_stacks = 0
+    
+    # Verbena survival ability
+    verbena_survived = False
+    
     # check for passive abilities that apply always
     if ability_type == "passive_damage_boost":  # Kasli
         passive_damage_boost = True
         p_def = int(p_def_base * 1.3)  # 30% less damage = 30% more DEF
         ability_text = f"✨ {chosen['name']}'s ability is active!\n**{chosen.get('ability', '')}**"
+    elif ability_type == "rampage":  # Balrog
+        ability_text = f"✨ {chosen['name']}'s ability is ready!\n**{chosen.get('ability', '')}**"
     
     # first turn abilities (applied before determining turn order)
     elif ability_type == "first_turn_def":  # Kai
@@ -698,6 +726,15 @@ async def battle_cmd(ctx):
                         low_hp_def_active = True
                         round_log.append(f"💚 **{chosen['name']}'s low HP ability activates!** DEF +50%")
                 
+                # Balrog's rampage ability - ATK increases every turn
+                if ability_type == "rampage":
+                    balrog_atk_stacks += 1
+                    p_atk = int(p_atk_base * (1 + 0.2 * balrog_atk_stacks))
+                    if balrog_atk_stacks == 1:
+                        round_log.append(f"🔥 **{chosen['name']}'s rage grows!** ATK +20% (Total: +{balrog_atk_stacks * 20}%)")
+                    else:
+                        round_log.append(f"🔥 **{chosen['name']}'s rage intensifies!** ATK +20% (Total: +{balrog_atk_stacks * 20}%)")
+                
                 # Jeanne's heal and def boost (first attack only)
                 if ability_type == "heal_and_def" and not heal_and_def_used and current_round == 1:
                     heal_amount = int(p_hp_max * 0.3)
@@ -783,6 +820,12 @@ async def battle_cmd(ctx):
                     player_current_hp -= dmg
                     player_current_hp = max(0, player_current_hp)
                     round_log.append(f"💥 Enemy's **{enemy['name']}** deals `{dmg}` damage.")
+                    
+                    # Verbena's survival ability
+                    if ability_type == "survive" and not verbena_survived and player_current_hp <= 0:
+                        player_current_hp = 1
+                        verbena_survived = True
+                        round_log.append(f"💫 **{chosen['name']} refuses to fall!** Survived with 1 HP!")
 
                 embed = discord.Embed(
                     title=f"⚔️ Battle — Floor {floor} ⚔️",
