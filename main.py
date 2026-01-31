@@ -162,6 +162,11 @@ def ensure_user(user_id: int):
                 c["base"] = base["base"]
                 c.setdefault("ability", base.get("ability", ""))
                 c.setdefault("image", base.get("image", ""))
+        # MIGRAZIONE: aggiungi ability_type alle carte vecchie
+        if "ability_type" not in c:
+            base = next((b for b in CHARACTERS if b["id"] == c.get("id")), None)
+            if base and "ability_type" in base:
+                c["ability_type"] = base["ability_type"]
     return user
 
 def exp_to_next(level: int) -> int:
@@ -559,6 +564,25 @@ async def battle_cmd(ctx):
 
     # ability system variables
     ability_type = chosen.get("ability_type", "")
+    
+    # FALLBACK: se ability_type non esiste (carte vecchie), determinalo dall'id
+    if not ability_type:
+        char_id = chosen.get("id", "")
+        if char_id == "kai":
+            ability_type = "first_turn_def"
+        elif char_id == "valkyrie":
+            ability_type = "first_turn_spd"
+        elif char_id == "shishilan_pasalan":
+            ability_type = "first_turn_atk"
+        elif char_id == "kasli":
+            ability_type = "passive_damage_boost"
+        elif char_id == "emma":
+            ability_type = "low_hp_def_boost"
+        elif char_id == "thundia":
+            ability_type = "paralyze"
+        elif char_id == "jeanne":
+            ability_type = "heal_and_def"
+    
     ability_text = ""
     buff_applied = False
     
