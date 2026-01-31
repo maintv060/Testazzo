@@ -150,7 +150,9 @@ def ensure_user(user_id: int):
     uid = str(user_id)
     if uid not in data["users"]:
         data["users"][uid] = {
-            "stamina": 20,
+            "stamina": 100,
+            "max_stamina": 100,
+            "last_stamina_regen": time.time(),
             "gold": 0,
             "inventory": [],
             "last_hourly": 0.0,
@@ -163,6 +165,23 @@ def ensure_user(user_id: int):
         }
     # Normalize existing inventory entries if missing fields (basic migration)
     user = data["users"][uid]
+    
+    # Migrazione: aggiungi max_stamina e last_stamina_regen se non esistono
+    if "max_stamina" not in user:
+        # max_stamina = 100 + (livello - 1) * 5
+        user["max_stamina"] = 100 + (user.get("level", 1) - 1) * 5
+    if "last_stamina_regen" not in user:
+        user["last_stamina_regen"] = time.time()
+    
+    # Rigenera stamina automaticamente
+    current_time = time.time()
+    time_passed = current_time - user.get("last_stamina_regen", current_time)
+    intervals_passed = int(time_passed / 300)  # 300 secondi = 5 minuti
+    
+    if intervals_passed > 0:
+        stamina_to_add = intervals_passed * 5
+        user["stamina"] = min(user.get("max_stamina", 100), user.get("stamina", 0) + stamina_to_add)
+        user["last_stamina_regen"] = current_time - (time_passed % 300)  # reset con remainder
     inv = user.get("inventory", [])
     for c in inv:
         if "level" not in c:
@@ -195,10 +214,12 @@ def maybe_level_up_user(user: dict) -> list:
         need = exp_to_next(user.get("level", 1))
         user["exp"] -= need
         user["level"] = user.get("level", 1) + 1
-        # increase stamina as an effective max increase
+        # increase max stamina by 5 per level
         bonus = 5
-        user["stamina"] = user.get("stamina", 0) + bonus
-        messages.append(f"Level up! Now level {user['level']} (+{bonus} stamina).")
+        user["max_stamina"] = user.get("max_stamina", 100) + bonus
+        # Also add current stamina (as a level up bonus)
+        user["stamina"] = min(user.get("max_stamina"), user.get("stamina", 0) + bonus)
+        messages.append(f"⬆️ Level up! Now level {user['level']} (Max stamina: {user['max_stamina']})")
     return messages
 
 def create_card_instance(card_base: dict, rarity: str):
@@ -279,9 +300,21 @@ async def help_cmd(ctx):
 async def profile(ctx):
     """Show user profile: stamina, gold, level and cards."""
     user = ensure_user(ctx.author.id)
+    
+    # Calcola tempo alla prossima rigenerazione
+    current_time = time.time()
+    time_since_regen = current_time - user.get("last_stamina_regen", current_time)
+    time_to_next = 300 - (time_since_regen % 300)  # 300 secondi = 5 minuti
+    minutes = int(time_to_next // 60)
+    seconds = int(time_to_next % 60)
+    
+    stamina_info = f"⚡ Stamina: {user['stamina']}/{user.get('max_stamina', 100)}"
+    if user['stamina'] < user.get('max_stamina', 100):
+        stamina_info += f" (Next +5 in {minutes}m {seconds}s)"
+    
     await ctx.send(
         f"👤 **Profile — {ctx.author.name}**\n"
-        f"⚡ Stamina: {user['stamina']}\n"
+        f"{stamina_info}\n"
         f"💰 Gold: {user['gold']}\n"
         f"🎴 Cards owned: {len(user['inventory'])}\n"
         f"⭐ Level: {user.get('level',1)} | EXP: {user.get('exp',0)}/{exp_to_next(user.get('level',1))}\n"
@@ -292,7 +325,19 @@ async def profile(ctx):
 async def stamina_cmd(ctx):
     """Show current stamina."""
     user = ensure_user(ctx.author.id)
-    await ctx.send(f"⚡ Current stamina: **{user['stamina']}**")
+    
+    # Calcola tempo alla prossima rigenerazione
+    current_time = time.time()
+    time_since_regen = current_time - user.get("last_stamina_regen", current_time)
+    time_to_next = 300 - (time_since_regen % 300)
+    minutes = int(time_to_next // 60)
+    seconds = int(time_to_next % 60)
+    
+    stamina_msg = f"⚡ Current stamina: **{user['stamina']}/{user.get('max_stamina', 100)}**"
+    if user['stamina'] < user.get('max_stamina', 100):
+        stamina_msg += f"\n🕐 Next +5 in **{minutes}m {seconds}s**"
+    
+    await ctx.send(stamina_msg)
 
 @bot.command(name="gold", aliases=["g"])
 async def gold_cmd(ctx):
