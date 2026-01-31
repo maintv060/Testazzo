@@ -617,7 +617,7 @@ async def battle_cmd(ctx):
     # Player info
     player_stats = (
         f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
-        f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+        f"HP: `{p_hp_max}` | ATK: `{p_atk}` | DEF: `{p_def}` | SPD: `{p_spd}`\n"
         f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
     )
     embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
@@ -709,7 +709,7 @@ async def battle_cmd(ctx):
                 # Player info with updated HP
                 player_stats = (
                     f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
-                    f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+                    f"HP: `{p_hp_max}` | ATK: `{p_atk}` | DEF: `{p_def}` | SPD: `{p_spd}`\n"
                     f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
                 )
                 embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
@@ -769,7 +769,7 @@ async def battle_cmd(ctx):
                 # Player info with updated HP
                 player_stats = (
                     f"**{ctx.author.display_name}'s {chosen['name']}** `{chosen.get('rarity')}` Level `{lvl}`\n"
-                    f"HP: `{p_hp_max}` | ATK: `{p_atk_base}` | DEF: `{p_def_base}` | SPD: `{p_spd_base}`\n"
+                    f"HP: `{p_hp_max}` | ATK: `{p_atk}` | DEF: `{p_def}` | SPD: `{p_spd}`\n"
                     f"{create_hp_bar(player_current_hp, p_hp_max)} `{player_current_hp}/{p_hp_max}`"
                 )
                 embed.add_field(name="🛡️ Your Fighter", value=player_stats, inline=False)
