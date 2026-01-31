@@ -21,25 +21,60 @@ DATA_FILE = "data.json"
 # Each character has the same base stats across rarities; rarities only affect max_level
 CHARACTERS = [
     {
-        "id": "hilde",
-        "name": "Hilde",
-        "base": {"hp": 89, "atk": 65, "def": 92, "spd": 65},
+        "id": "kai",
+        "name": "Kai",
+        "base": {"hp": 70, "atk": 80, "def": 85, "spd": 75},
         "ability": "First turn: +100% DEF",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901032838631618/IMG_6230.webp?ex=697e6d8b&is=697d1c0b&hm=d54a0f61b48efcf9091c8aab7408acecd66e22a5f9444b6c053d635db6396344&=&format=webp"
+        "ability_type": "first_turn_def",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467230569225257021/IMG_6242.webp?ex=697fa073&is=697e4ef3&hm=fcf57c98aa851d3720a077233c986ff8ca097d9f627f8f3d0015418dec20b63f&=&format=webp&width=691&height=967"
     },
     {
-        "id": "joo_shiyoon",
-        "name": "Joo Shiyoon",
-        "base": {"hp": 60, "atk": 95, "def": 86, "spd": 89},
+        "id": "valkyrie",
+        "name": "Valkyrie",
+        "base": {"hp": 70, "atk": 70, "def": 70, "spd": 75},
         "ability": "First turn: +100% SPD",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901241136415006/IMG_6231.webp?ex=697e6dbd&is=697d1c3d&hm=6849bbfd761c0d01a89d8ac6ce6edfc7980e1365d1d643a598d4b937307d6a78&=&format=webp&width=691&height=967"
+        "ability_type": "first_turn_spd",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467231114069541167/IMG_6243.jpg?ex=697fa0f5&is=697e4f75&hm=9ea3fc0b57e952f3ef19b47890d430953154d550c8080ed4a126d9a6cdb1315c&=&format=webp&width=692&height=968"
     },
     {
-        "id": "yoo_mina",
-        "name": "Yoo Mina",
-        "base": {"hp": 75, "atk": 75, "def": 75, "spd": 85},
+        "id": "shishilan_pasalan",
+        "name": "Shishilan Pasalan",
+        "base": {"hp": 75, "atk": 88, "def": 75, "spd": 50},
         "ability": "First turn: +50% ATK",
-        "image": "https://media.discordapp.net/attachments/815650716730654743/1466901083933638766/IMG_6229.webp?ex=697e6d98&is=697d1c18&hm=f02546c4cada88d78c8ac03284cdbce01bef7552a336072c3ae10dfc5aa8f217&=&format=webp"
+        "ability_type": "first_turn_atk",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467230025437679638/IMG_6240.webp?ex=697f9ff1&is=697e4e71&hm=12d51b8f9340d44c7fb9350c23ac32b0acd9d1dbf0724625bd6cb5c3027307b0&=&format=webp&width=691&height=967"
+    },
+    {
+        "id": "kasli",
+        "name": "Kasli",
+        "base": {"hp": 92, "atk": 80, "def": 91, "spd": 80},
+        "ability": "Passive: -30% damage taken, +30% damage dealt",
+        "ability_type": "passive_damage_boost",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467226612956135477/IMG_6235.webp?ex=697f9cc4&is=697e4b44&hm=009816068e835a51f08118c55ba0f89b8056998576aaed3728fe0503cbd85328&=&format=webp&width=691&height=968"
+    },
+    {
+        "id": "emma",
+        "name": "Emma",
+        "base": {"hp": 90, "atk": 72, "def": 94, "spd": 70},
+        "ability": "When HP < 50%: +50% DEF",
+        "ability_type": "low_hp_def_boost",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467227714330038302/IMG_6237.webp?ex=697f9dca&is=697e4c4a&hm=228c56a9a127727b6ef49d93f076f017e74d81a74fde02c5a36a298602161f2c&=&format=webp&width=691&height=968"
+    },
+    {
+        "id": "thundia",
+        "name": "Thundia",
+        "base": {"hp": 82, "atk": 85, "def": 89, "spd": 79},
+        "ability": "First attack: Paralyze enemy for 2 turns",
+        "ability_type": "paralyze",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467228234142716057/IMG_6238.webp?ex=697f9e46&is=697e4cc6&hm=c818fc48e0c497096815093781fb55da02dc6b43037dc1999374f22b1ed18bed&=&format=webp&width=691&height=967"
+    },
+    {
+        "id": "jeanne",
+        "name": "Jeanne",
+        "base": {"hp": 88, "atk": 69, "def": 85, "spd": 69},
+        "ability": "First attack: Heal 30% max HP, +30% DEF",
+        "ability_type": "heal_and_def",
+        "image": "https://media.discordapp.net/attachments/1467048963415871621/1467229071741026486/IMG_6239.webp?ex=697f9f0e&is=697e4d8e&hm=3ced57c2b8f5be94667b84252de7ccd99720d94b36eb37e410434a64111750b0&=&format=webp&width=691&height=967"
     },
 ]
 
@@ -522,18 +557,39 @@ async def battle_cmd(ctx):
     player_current_hp = p_hp_max
     enemy_current_hp = e_hp_max
 
-    # ability: first turn buff for the player
+    # ability system variables
+    ability_type = chosen.get("ability_type", "")
     ability_text = ""
-    if chosen.get("ability"):
-        if "DEF" in chosen["ability"]:
-            p_def = int(p_def_base * 2)
-            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
-        elif "SPD" in chosen["ability"]:
-            p_spd = int(p_spd_base * 2)
-            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
-        elif "ATK" in chosen["ability"]:
-            p_atk = int(p_atk_base * 1.5)
-            ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
+    buff_applied = False
+    
+    # passive ability flags
+    passive_damage_boost = False
+    low_hp_def_active = False
+    
+    # special ability flags
+    paralyze_turns_left = 0
+    heal_and_def_used = False
+    jeanne_def_boost = 1.0
+    
+    # check for passive abilities that apply always
+    if ability_type == "passive_damage_boost":  # Kasli
+        passive_damage_boost = True
+        p_def = int(p_def_base * 1.3)  # 30% less damage = 30% more DEF
+        ability_text = f"✨ {chosen['name']}'s ability is active!\n**{chosen.get('ability', '')}**"
+    
+    # first turn abilities (applied before determining turn order)
+    elif ability_type == "first_turn_def":  # Kai
+        p_def = int(p_def_base * 2)
+        buff_applied = True
+        ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
+    elif ability_type == "first_turn_spd":  # Valkyrie
+        p_spd = int(p_spd_base * 2)
+        buff_applied = True
+        ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
+    elif ability_type == "first_turn_atk":  # Shishilan Pasalan
+        p_atk = int(p_atk_base * 1.5)
+        buff_applied = True
+        ability_text = f"✨ {chosen['name']}'s ability activates!\n**{chosen.get('ability', '')}**"
 
     # determine who acts first using (possibly buffed) speed
     first_striker = None
@@ -591,7 +647,6 @@ async def battle_cmd(ctx):
     # animate turns
     max_turns = 40
     current_round = 0
-    buff_applied = True  # we applied the first-turn buff already in stats above
     
     while player_current_hp > 0 and enemy_current_hp > 0 and current_round < max_turns:
         current_round += 1
@@ -611,10 +666,38 @@ async def battle_cmd(ctx):
             if actor == "player":
                 if player_current_hp <= 0 or enemy_current_hp <= 0:
                     break
-                dmg = damage_formula(p_atk, e_def)
+                
+                # Check Emma's low HP ability
+                if ability_type == "low_hp_def_boost" and not low_hp_def_active:
+                    if player_current_hp < (p_hp_max * 0.5):
+                        p_def = int(p_def_base * 1.5)
+                        low_hp_def_active = True
+                        round_log.append(f"💚 **{chosen['name']}'s low HP ability activates!** DEF +50%")
+                
+                # Jeanne's heal and def boost (first attack only)
+                if ability_type == "heal_and_def" and not heal_and_def_used and current_round == 1:
+                    heal_amount = int(p_hp_max * 0.3)
+                    player_current_hp = min(p_hp_max, player_current_hp + heal_amount)
+                    jeanne_def_boost = 1.3
+                    p_def = int(p_def_base * jeanne_def_boost)
+                    heal_and_def_used = True
+                    round_log.append(f"✨ **{chosen['name']} heals {heal_amount} HP and gains +30% DEF!**")
+                
+                # Calculate damage (with Kasli's passive boost if active)
+                base_dmg = damage_formula(p_atk, e_def)
+                if passive_damage_boost:
+                    dmg = int(base_dmg * 1.3)  # +30% damage
+                else:
+                    dmg = base_dmg
+                
                 enemy_current_hp -= dmg
                 enemy_current_hp = max(0, enemy_current_hp)
                 round_log.append(f"⚔️ {ctx.author.display_name}'s **{chosen['name']}** deals `{dmg}` damage.")
+                
+                # Thundia's paralyze (first attack only)
+                if ability_type == "paralyze" and current_round == 1:
+                    paralyze_turns_left = 2
+                    round_log.append(f"⚡ **Enemy is paralyzed for 2 turns!**")
 
                 # update embed with current round
                 embed = discord.Embed(
@@ -660,10 +743,22 @@ async def battle_cmd(ctx):
             else:  # enemy's turn
                 if player_current_hp <= 0 or enemy_current_hp <= 0:
                     break
-                dmg = damage_formula(e_atk, p_def)
-                player_current_hp -= dmg
-                player_current_hp = max(0, player_current_hp)
-                round_log.append(f"💥 Enemy's **{enemy['name']}** deals `{dmg}` damage.")
+                
+                # Check if enemy is paralyzed
+                if paralyze_turns_left > 0:
+                    paralyze_turns_left -= 1
+                    round_log.append(f"⚡ **Enemy is paralyzed! Cannot attack.** ({paralyze_turns_left} turns left)")
+                else:
+                    # Calculate damage (with Kasli's passive reduction if active)
+                    base_dmg = damage_formula(e_atk, p_def)
+                    if passive_damage_boost:
+                        dmg = int(base_dmg * 0.7)  # -30% damage taken
+                    else:
+                        dmg = base_dmg
+                    
+                    player_current_hp -= dmg
+                    player_current_hp = max(0, player_current_hp)
+                    round_log.append(f"💥 Enemy's **{enemy['name']}** deals `{dmg}` damage.")
 
                 embed = discord.Embed(
                     title=f"⚔️ Battle — Floor {floor} ⚔️",
